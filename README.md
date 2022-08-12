@@ -130,4 +130,8 @@ for i in range(len(train_dataset)):
     a,b = train_dataset.__getitem__(i)
     print(a,b)
 ```
-我擦擦擦VSC崩了，我的.ipynb代码块全部空了出来
+我擦擦擦VSC崩了，我的.ipynb代码块全部空了出来，好在恢复过来了，还有一个问题是他丫的.ipynb中一调试就退出，真不好玩，我又不想用pycharm这么重量的
+后来在VSC里建了一个.py文件来debug，或者叫他比较有意思的事情吧，就是我的debug第一次通过`model.fit`的时候是没问题的，第二次通过的时候就抛出异常了
+只是有时候气呀，明明能用高层API解决的问题，为啥要去手写底层代码
+稍微看了下model.py里好像也要先把dataset转为dataloader，说实话感觉sklearn和keras做这种任务的时候让人更加轻松，直接扔numpy张量就行，或者paddle好像也没有能够直接把数据转为paddle格式的tensor，需要自己来自定义，也不是不可以吧其实说，但是的话先预处理完feature再转换tensor也不是不可以，现在主要的问题是我没有头绪
+emm好像有个to_tensor方法，但是如果想要直接调用高层API`model.fit`的话还是不行呀
