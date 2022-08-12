@@ -135,3 +135,89 @@ for i in range(len(train_dataset)):
 只是有时候气呀，明明能用高层API解决的问题，为啥要去手写底层代码
 稍微看了下model.py里好像也要先把dataset转为dataloader，说实话感觉sklearn和keras做这种任务的时候让人更加轻松，直接扔numpy张量就行，或者paddle好像也没有能够直接把数据转为paddle格式的tensor，需要自己来自定义，也不是不可以吧其实说，但是的话先预处理完feature再转换tensor也不是不可以，现在主要的问题是我没有头绪
 emm好像有个to_tensor方法，但是如果想要直接调用高层API`model.fit`的话还是不行呀
+奈斯奈斯我爽了，解决了归一化的问题，利用了`np.c_[]`方法，终于正常地开始训练了哈哈哈哈哈哈，不多说了直接看代码吧
+```py
+# 导入训练数据
+df_train = pd.read_csv("train.csv")
+df_train = df_train.drop(['id'],axis=1)
+# 对特征进行归一化
+from sklearn.preprocessing import StandardScaler  
+scaler = StandardScaler()  
+scaler.fit(df_train.iloc[:,0:])  
+scaler_data = scaler.transform(df_train.iloc[:,0:])
+# 将训练数据集和测试数据集按照8:2的比例分开
+ratio = 0.8
+offset = int(df_train.shape[0] * ratio)
+train_data = np.c_[scaler_data,df_train.iloc[:,0]][:offset].copy()
+test_data = np.c_[scaler_data,df_train.iloc[:,0]][offset:].copy()
+# MLP模型组网搭建
+n_input = 30
+from paddle import nn
+class Classifier(paddle.nn.Layer):
+    def __init__(self):
+        super(Classifier, self).__init__()
+        self.l1 = paddle.nn.Linear(n_input, 1,)
+
+    def forward(self, inputs):
+        pred = self.l1(inputs)
+        return pred
+# 训练过程
+import paddle.nn.functional as F 
+y_preds = []
+train_nums = []
+train_costs = []
+labels_list = []
+BATCH_SIZE = 20
+
+def train(model):
+    print('start training ... ')
+    # 开启模型训练模式
+    model.train()
+    EPOCH_NUM = 5
+    train_num = 0
+    optimizer = paddle.optimizer.SGD(learning_rate=0.001, parameters=model.parameters())
+    for epoch_id in range(EPOCH_NUM):
+        # 在每轮迭代开始之前，将训练数据的顺序随机的打乱
+        np.random.shuffle(train_data)
+        # 将训练数据进行拆分，每个batch包含20条数据
+        mini_batches = [train_data[k: k+BATCH_SIZE] for k in range(0, len(train_data), BATCH_SIZE)]
+        for batch_id, data in enumerate(mini_batches):
+            features_np = np.array(data[:, :n_input], np.float32)
+            labels_np = np.array(data[:, -1:], np.float32)
+            features = paddle.to_tensor(features_np)
+            labels = paddle.to_tensor(labels_np)
+            # 前向计算
+            y_pred = model(features)
+            cost = F.mse_loss(y_pred, label=labels)
+            train_cost = cost.numpy()[0]
+            # 反向传播
+            cost.backward()
+            # 最小化loss，更新参数
+            optimizer.step()
+            # 清除梯度
+            optimizer.clear_grad()
+            
+            if batch_id%30 == 0 and epoch_id%50 == 0:
+                print("Pass:%d,Cost:%0.5f"%(epoch_id, train_cost))
+
+            train_num = train_num + BATCH_SIZE
+            train_nums.append(train_num)
+            train_costs.append(train_cost)
+        
+model = Classifier()
+train(model)
+
+# 损失函数曲线
+def draw_train_process(iters, train_costs):
+    plt.title("training cost", fontsize=24)
+    plt.xlabel("iter", fontsize=14)
+    plt.ylabel("cost", fontsize=14)
+    plt.plot(iters, train_costs, color='red', label='training cost')
+    plt.show()
+
+import matplotlib
+matplotlib.use('TkAgg')
+%matplotlib inline
+draw_train_process(train_nums, train_costs)
+```
+当然还有一些细节没有细扣，先睡觉了，明天继续
