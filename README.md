@@ -1,3 +1,4 @@
+#### 20220813
 这里有个bug的点，paddle框架自带的波士顿房价dataset和我自己的dataset，`__item__`方法返回的都是一个元组，用`a,b = train_dataset=[0]`的话那就是两个np数组
 ```py
 # 自建dataset逐行输出结果
@@ -221,3 +222,55 @@ matplotlib.use('TkAgg')
 draw_train_process(train_nums, train_costs)
 ```
 当然还有一些细节没有细扣，先睡觉了，明天继续
+***
+#### 20220814
+那这部分作为预测部分的代码
+```py
+# 获取预测数据
+INFER_BATCH_SIZE = 100
+
+infer_features_np = np.array(test_data[1:]).astype("float32")
+infer_labels_np = np.array(test_data[0]).astype("float32")
+
+infer_features = paddle.to_tensor(infer_features_np)
+infer_labels = paddle.to_tensor(infer_labels_np)
+fetch_list = model(infer_features)
+
+sum_cost = 0
+for i in range(INFER_BATCH_SIZE):
+    infer_result = fetch_list[i][0]
+    ground_truth = infer_labels[i]
+    if i % 10 == 0:
+        print("No.%d: infer result is %.2f,ground truth is %.2f" % (i, infer_result, ground_truth))
+    cost = paddle.pow(infer_result - ground_truth, 2)
+    sum_cost += cost
+mean_loss = sum_cost / INFER_BATCH_SIZE
+print("Mean loss is:", mean_loss.numpy())
+```
+利用debug功能，定位到了错误代码，是在类`Classifier`中的`forward`方法
+```py
+def forward(self, inputs):
+    pred = self.l1(inputs)
+```
+报错内容为
+```
+发生异常: ValueError
+(InvalidArgument) Input(Y) has error dim.Y'dims[0] must be equal to 32But received Y'dims[0] is 30
+  [Hint: Expected y_dims[y_ndim - 2] == K, but received y_dims[y_ndim - 2]:30 != K:32.] (at C:\home\workspace\Paddle_release\paddle/phi/kernels/impl/matmul_kernel_impl.h:315)
+  [operator < matmul_v2 > error]
+```
+很快我们定位到这两行代码，当然除此以外还有一些小补丁，问题比较容易排查就没列在这里
+```py
+infer_features_np = np.array(test_data[1:]).astype("float32")
+infer_labels_np = np.array(test_data[0]).astype("float32")
+```
+修改切片方式之后又有其他地方报错，是在train部分的前向计算中
+```py
+cost = F.binary_cross_entropy_with_logits(y_pred, label=labels)
+```
+```
+发生异常: ValueError
+(InvalidArgument) Input(X) and Input(Label) shall have the same rank.But received: the rank of Input(X) is [2], the rank of Input(Label) is [1].
+  [Hint: Expected rank == labels_dims.size(), but received rank:2 != labels_dims.size():1.] (at C:\home\workspace\Paddle_release\paddle\phi\infermeta\binary.cc:1735)
+  [operator < sigmoid_cross_entropy_with_logits > error]
+```
