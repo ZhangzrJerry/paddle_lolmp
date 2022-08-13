@@ -274,3 +274,9 @@ cost = F.binary_cross_entropy_with_logits(y_pred, label=labels)
   [Hint: Expected rank == labels_dims.size(), but received rank:2 != labels_dims.size():1.] (at C:\home\workspace\Paddle_release\paddle\phi\infermeta\binary.cc:1735)
   [operator < sigmoid_cross_entropy_with_logits > error]
 ```
+于是我把08.12已经成功的训练部分代码挪回来，把一下错误的细节修改，例如提取feature和label的部分，那放进文件里可以跑通训练部分，但当我把lossfunction从mseloss修改为binary_cross_entropy_with_logits之后就炸了，但也有个很有意思的地方是我之前跑交叉熵损失函数时是有成功过的，这就让人比较抓狂了
+其实不需要挪用之前的代码，emm报错很明显提示了两个张量的秩有差异，从debug的位置来看一个是(20,1)另一个是(20)，于是我在进行loss计算前用reshape方法对y_pred进行降维操作，又可以继续训练了，虽然训练到一半窗口未响应remake了
+```py
+y_pred = paddle.reshape(y_pred,shape=[-1])
+```
+> 有一点我需要注意的是，我应该先看清楚报错的问题是什么再去解决，它都已经把异常抛出了，就没必要说去尝试到底是哪里出现的问题
