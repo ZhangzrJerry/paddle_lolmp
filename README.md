@@ -280,3 +280,4 @@ cost = F.binary_cross_entropy_with_logits(y_pred, label=labels)
 y_pred = paddle.reshape(y_pred,shape=[-1])
 ```
 > 有一点我需要注意的是，我应该先看清楚报错的问题是什么再去解决，它都已经把异常抛出了，就没必要说去尝试到底是哪里出现的问题
+也是比较骚啊，这里交叉熵损失函数出现了反复波动，而且取值小于0的情况，参考 https://blog.csdn.net/qq_39575835/article/details/104353889 ，在输出层加入激活函数softmax，报错啦
